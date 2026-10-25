@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>change AR</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; }
+    #start {
+      position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 20px;
+      background: #0d0d0d; color: #f5e6c8; text-align: center; padding: 24px;
+    }
+    #start h1 { margin: 0; font-size: 44px; font-weight: 700; color: #ffd678; letter-spacing: 0.04em; font-family: Georgia, serif; }
+    #start p { margin: 0; font-size: 15px; line-height: 1.8; color: #cfc6b8; }
+    #start button {
+      margin-top: 8px; padding: 16px 40px; font-size: 17px; font-weight: 700;
+      border: 0; border-radius: 999px; background: #ffd678; color: #2a1a00;
+    }
+    #scanning {
+      position: fixed; left: 0; right: 0; bottom: 40px; z-index: 10; display: flex; justify-content: center;
+      pointer-events: none;
+    }
+    #scanning div {
+      background: rgba(0,0,0,0.6); color: #fff; padding: 12px 20px; border-radius: 999px; font-size: 14px;
+    }
+    #replay {
+      position: fixed; right: 16px; bottom: 40px; z-index: 10; display: none;
+      padding: 10px 18px; border: 0; border-radius: 999px; background: rgba(255,214,120,0.9);
+      color: #2a1a00; font-size: 14px; font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div id="start">
+    <h1>change</h1>
+    <p>ボタンを押したあと、<br>カメラをポスター全体に向けてください。</p>
+    <button id="startBtn">はじめる</button>
+  </div>
+
+  <div id="scanning" class="hidden"><div>ポスター全体をカメラに映してください</div></div>
+  <button id="replay">もう一度見る</button>
+
+  <a-scene
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: #scanning; uiLoading: no; filterMinCF: 0.0001; filterBeta: 0.001"
+    color-space="sRGB" renderer="colorManagement: true"
+    vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <a-assets>
+      <video id="changeVideo" src="./change.mp4" preload="auto" muted playsinline webkit-playsinline crossorigin="anonymous"></video>
+    </a-assets>
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+    <a-entity id="target" mindar-image-target="targetIndex: 0">
+      <a-video src="#changeVideo" width="1" height="1.4142" position="0 0 0"></a-video>
+    </a-entity>
+  </a-scene>
+
+  <script>
+    const video = document.getElementById('changeVideo');
+    const target = document.getElementById('target');
+    const replay = document.getElementById('replay');
+    const scene = document.querySelector('a-scene');
+
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) {}
+      document.getElementById('start').style.display = 'none';
+      const ar = scene.systems['mindar-image-system'];
+      if (scene.hasLoaded) ar.start(); else scene.addEventListener('loaded', () => ar.start());
+    });
+
+    target.addEventListener('targetFound', () => {
+      if (video.ended) video.currentTime = 0;
+      video.play();
+    });
+    target.addEventListener('targetLost', () => { video.pause(); });
+    video.addEventListener('ended', () => { replay.style.display = 'block'; });
+    replay.addEventListener('click', () => {
+      replay.style.display = 'none';
+      video.currentTime = 0;
+      video.play();
+    });
+  </script>
+</body>
+</html>
