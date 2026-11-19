@@ -4,44 +4,43 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>change AR</title>
+  <script>
+    // ===== ここだけ書き換えればOK =====
+    const CONFIG = {
+      eventDate: "2027-02-26",        // アワード本番日（年-月-日）
+      infoImage: "./info.png",        // 変化後に表示するお知らせ画像（差し替え用）
+      linkUrl: "",                    // ボタンのリンク先（空なら非表示）
+      linkLabel: "詳しくはこちら"       // ボタンの文字
+    };
+    // ==================================
+  </script>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; }
-    #start {
-      position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 20px;
-      background: #0d0d0d; color: #f5e6c8; text-align: center; padding: 24px;
-    }
-    #start h1 { margin: 0; font-size: 44px; font-weight: 700; color: #ffd678; letter-spacing: 0.04em; font-family: Georgia, serif; }
-    #start p { margin: 0; font-size: 15px; line-height: 1.8; color: #cfc6b8; }
-    #start button {
-      margin-top: 8px; padding: 16px 40px; font-size: 17px; font-weight: 700;
-      border: 0; border-radius: 999px; background: #ffd678; color: #2a1a00;
-    }
-    #scanning {
-      position: fixed; left: 0; right: 0; bottom: 40px; z-index: 10; display: flex; justify-content: center;
-      pointer-events: none;
-    }
-    #scanning div {
-      background: rgba(0,0,0,0.6); color: #fff; padding: 12px 20px; border-radius: 999px; font-size: 14px;
-    }
-    #replay {
-      position: fixed; right: 16px; bottom: 40px; z-index: 10; display: none;
-      padding: 10px 18px; border: 0; border-radius: 999px; background: rgba(255,214,120,0.9);
-      color: #2a1a00; font-size: 14px; font-weight: 700;
-    }
+    #start { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: #0b0714; color: #ffffff; text-align: center; padding: 24px; }
+    #start h1 { margin: 0; font-size: 56px; font-weight: 900; color: #ff3cc8; text-shadow: 0 0 18px #ff3cc8; letter-spacing: -0.02em; font-family: "Helvetica Neue", Arial, sans-serif; }
+    #start p { margin: 0; font-size: 15px; line-height: 1.8; color: #ddd; }
+    #start button { margin-top: 8px; padding: 16px 44px; font-size: 17px; font-weight: 700; border: 0; border-radius: 999px; background: #ff3cc8; color: #fff; }
+    #scanning { position: fixed; left: 0; right: 0; bottom: 40px; z-index: 10; display: flex; justify-content: center; pointer-events: none; }
+    #scanning div { background: rgba(0,0,0,0.6); color: #fff; padding: 12px 20px; border-radius: 999px; font-size: 14px; }
+    #bar { position: fixed; left: 0; right: 0; bottom: 32px; z-index: 10; display: none; justify-content: center; gap: 10px; padding: 0 16px; }
+    #bar button, #bar a { padding: 12px 20px; border: 0; border-radius: 999px; font-size: 14px; font-weight: 700; text-decoration: none; }
+    #replay { background: rgba(255,255,255,0.92); color: #0e0e0e; }
+    #link { background: #ff3cc8; color: #fff; display: none; }
   </style>
 </head>
 <body>
   <div id="start">
-    <h1>change</h1>
+    <h1>CHANGE</h1>
     <p>ボタンを押したあと、<br>カメラをポスター全体に向けてください。</p>
     <button id="startBtn">はじめる</button>
   </div>
-
   <div id="scanning" class="hidden"><div>ポスター全体をカメラに映してください</div></div>
-  <button id="replay">もう一度見る</button>
+  <div id="bar">
+    <button id="replay">もう一度見る</button>
+    <a id="link" target="_blank" rel="noopener"></a>
+  </div>
 
   <a-scene
     mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: #scanning; uiLoading: no; filterMinCF: 0.0001; filterBeta: 0.001"
@@ -52,15 +51,113 @@
     </a-assets>
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
     <a-entity id="target" mindar-image-target="targetIndex: 0">
-      <a-video src="#changeVideo" width="1" height="1.4142" position="0 0 0"></a-video>
+      <a-video id="videoPlane" src="#changeVideo" width="1" height="1.3333" position="0 0 0"></a-video>
+      <a-plane id="infoPlane" width="1" height="1.3333" position="0 0 0.01" visible="false"
+               material="shader: flat; transparent: true; opacity: 0"></a-plane>
     </a-entity>
   </a-scene>
 
   <script>
     const video = document.getElementById('changeVideo');
     const target = document.getElementById('target');
-    const replay = document.getElementById('replay');
+    const infoPlane = document.getElementById('infoPlane');
+    const bar = document.getElementById('bar');
+    const link = document.getElementById('link');
     const scene = document.querySelector('a-scene');
+    let infoShown = false;
+
+    // カウントダウンの計算（日本時間）
+    function daysLeft() {
+      const [y, m, d] = CONFIG.eventDate.split('-').map(Number);
+      const event = Date.UTC(y, m - 1, d);
+      const jst = new Date(Date.now() + 9 * 3600 * 1000);
+      const today = Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate());
+      return Math.round((event - today) / 86400000);
+    }
+
+    // お知らせ画像＋カウントダウンを1枚の絵にする
+    function buildInfoTexture() {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const W = 1024, H = Math.round(1024 * 4 / 3);
+          const c = document.createElement('canvas');
+          c.width = W; c.height = H;
+          const g = c.getContext('2d');
+          g.drawImage(img, 0, 0, W, H);
+          const s = W / 1792;
+          const box = { x: 70 * s, y: 300 * s, w: 1652 * s, h: 760 * s };
+          const n = daysLeft();
+          const num = '"Helvetica Neue", "Arial Black", Arial, sans-serif';
+          const jp = '"Hiragino Sans", "Noto Sans JP", sans-serif';
+          g.fillStyle = '#ffffff';
+          g.textBaseline = 'alphabetic';
+          if (n > 0) {
+            g.font = `900 ${Math.round(70 * s)}px ${jp}`;
+            g.textAlign = 'left';
+            g.fillText('当日まで あと', box.x + 50 * s, box.y + 230 * s);
+            g.font = `900 ${Math.round(420 * s)}px ${num}`;
+            g.textAlign = 'right';
+            g.fillStyle = '#ff3cc8';
+            g.fillText(String(n), box.x + box.w - 260 * s, box.y + 640 * s);
+            g.fillStyle = '#ffffff';
+            g.font = `900 ${Math.round(160 * s)}px ${jp}`;
+            g.textAlign = 'left';
+            g.fillText('日', box.x + box.w - 230 * s, box.y + 640 * s);
+          } else {
+            g.font = `900 ${Math.round(150 * s)}px ${jp}`;
+            g.textAlign = 'center';
+            g.fillStyle = '#ff3cc8';
+            g.fillText(n === 0 ? '本日開催！' : '開催しました', box.x + box.w / 2, box.y + 470 * s);
+          }
+          const [y, m, d] = CONFIG.eventDate.split('-').map(Number);
+          const wd = ['SUN','MON','TUE','WED','THU','FRI','SAT'][new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+          g.fillStyle = '#ffffff';
+          g.font = `700 ${Math.round(44 * s)}px ${num}`;
+          g.textAlign = 'left';
+          g.fillText(`${y}.${String(m).padStart(2,'0')}.${String(d).padStart(2,'0')} ${wd}`, box.x + 110 * s, box.y + box.h - 60 * s);
+          resolve(c);
+        };
+        img.src = CONFIG.infoImage + '?t=' + Date.now();
+      });
+    }
+
+    let texReady = buildInfoTexture().then((canvas) => {
+      const apply = () => {
+        const mesh = infoPlane.getObject3D('mesh');
+        const tex = new AFRAME.THREE.CanvasTexture(canvas);
+        tex.colorSpace = AFRAME.THREE.SRGBColorSpace;
+        mesh.material.map = tex;
+        mesh.material.needsUpdate = true;
+      };
+      if (infoPlane.hasLoaded) apply(); else infoPlane.addEventListener('loaded', apply);
+    });
+
+    if (CONFIG.linkUrl) {
+      link.href = CONFIG.linkUrl;
+      link.textContent = CONFIG.linkLabel;
+      link.style.display = 'inline-block';
+    }
+
+    function showInfo() {
+      infoShown = true;
+      texReady.then(() => {
+        infoPlane.setAttribute('visible', true);
+        infoPlane.setAttribute('animation', 'property: material.opacity; from: 0; to: 1; dur: 700; easing: easeOutQuad');
+        bar.style.display = 'flex';
+      });
+    }
+
+    function playFromStart() {
+      infoShown = false;
+      infoPlane.removeAttribute('animation');
+      infoPlane.setAttribute('material', 'opacity', 0);
+      infoPlane.setAttribute('visible', false);
+      bar.style.display = 'none';
+      video.currentTime = 0;
+      video.play();
+    }
 
     document.getElementById('startBtn').addEventListener('click', async () => {
       try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) {}
@@ -70,16 +167,12 @@
     });
 
     target.addEventListener('targetFound', () => {
-      if (video.ended) video.currentTime = 0;
+      if (infoShown) { bar.style.display = 'flex'; return; }
       video.play();
     });
-    target.addEventListener('targetLost', () => { video.pause(); });
-    video.addEventListener('ended', () => { replay.style.display = 'block'; });
-    replay.addEventListener('click', () => {
-      replay.style.display = 'none';
-      video.currentTime = 0;
-      video.play();
-    });
+    target.addEventListener('targetLost', () => { if (!infoShown) video.pause(); });
+    video.addEventListener('ended', showInfo);
+    document.getElementById('replay').addEventListener('click', playFromStart);
   </script>
 </body>
 </html>
