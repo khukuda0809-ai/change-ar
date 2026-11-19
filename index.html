@@ -10,7 +10,8 @@
       eventDate: "2027-02-25",        // アワード本番日（年-月-日）
       infoImage: "./info.png",        // 変化後に表示するお知らせ画像（差し替え用）
       linkUrl: "https://lin.ee/n4lQLWP",                  // ボタンのリンク先（空なら非表示）
-      linkLabel: "LINE公式アカウント"       // ボタンの文字
+      linkLabel: "LINE公式アカウント",      // ボタンの文字
+      autoJumpSec: 3                  // お知らせ表示から何秒後にリンク先へ自動で飛ぶか（0なら飛ばない）
     };
     // ==================================
   </script>
@@ -141,10 +142,30 @@
         infoPlane.setAttribute('visible', true);
         infoPlane.setAttribute('animation', 'property: material.opacity; from: 0; to: 1; dur: 700; easing: easeOutQuad');
         bar.style.display = 'flex';
+        startAutoJump();
       });
     }
 
+    let jumpTimer = null;
+    function startAutoJump() {
+      if (!CONFIG.linkUrl || !CONFIG.autoJumpSec) return;
+      let left = CONFIG.autoJumpSec;
+      link.textContent = CONFIG.linkLabel + '（' + left + '）';
+      jumpTimer = setInterval(() => {
+        left--;
+        if (left > 0) { link.textContent = CONFIG.linkLabel + '（' + left + '）'; return; }
+        clearInterval(jumpTimer); jumpTimer = null;
+        link.textContent = CONFIG.linkLabel;
+        location.href = CONFIG.linkUrl;
+      }, 1000);
+    }
+    function stopAutoJump() {
+      if (jumpTimer) { clearInterval(jumpTimer); jumpTimer = null; }
+      link.textContent = CONFIG.linkLabel;
+    }
+
     function playFromStart() {
+      stopAutoJump();
       infoShown = false;
       infoPlane.removeAttribute('animation');
       infoPlane.setAttribute('material', 'opacity', 0);
