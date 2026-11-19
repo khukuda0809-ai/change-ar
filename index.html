@@ -7,7 +7,7 @@
   <script>
     // ===== ここだけ書き換えればOK =====
     const CONFIG = {
-      eventDate: "2027-02-26",        // アワード本番日（年-月-日）
+      eventDate: "2027-02-25",        // アワード本番日（年-月-日）
       infoImage: "./info.png",        // 変化後に表示するお知らせ画像（差し替え用）
       linkUrl: "",                    // ボタンのリンク先（空なら非表示）
       linkLabel: "詳しくはこちら"       // ボタンの文字
@@ -124,13 +124,8 @@
     }
 
     let texReady = buildInfoTexture().then((canvas) => {
-      const apply = () => {
-        const mesh = infoPlane.getObject3D('mesh');
-        const tex = new AFRAME.THREE.CanvasTexture(canvas);
-        tex.colorSpace = AFRAME.THREE.SRGBColorSpace;
-        mesh.material.map = tex;
-        mesh.material.needsUpdate = true;
-      };
+      const url = canvas.toDataURL('image/jpeg', 0.92);
+      const apply = () => infoPlane.setAttribute('material', { shader: 'flat', src: url, transparent: true, opacity: 0 });
       if (infoPlane.hasLoaded) apply(); else infoPlane.addEventListener('loaded', apply);
     });
 
