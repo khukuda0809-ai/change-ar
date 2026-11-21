@@ -242,5 +242,35 @@
     video.addEventListener('ended', showInfo);
     document.getElementById('replay').addEventListener('click', playFromStart);
   </script>
+  <script>
+    // ?debug=1 を付けて開くと、画面の上に動作状況を表示する（原因調査用）
+    if (/[?&]debug=1/.test(location.search)) {
+      CONFIG.autoJumpSec = 0;
+      const box = document.createElement('pre');
+      box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99;margin:0;padding:6px 8px;font:11px/1.35 monospace;color:#0f0;background:rgba(0,0,0,.75);white-space:pre-wrap;pointer-events:none';
+      document.body.appendChild(box);
+      const ev = [];
+      const t0 = Date.now();
+      const log = (m) => { ev.push(((Date.now() - t0) / 1000).toFixed(1) + 's ' + m); if (ev.length > 14) ev.shift(); };
+      window.addEventListener('error', (e) => log('ERR ' + e.message));
+      window.addEventListener('unhandledrejection', (e) => log('REJ ' + (e.reason && e.reason.message || e.reason)));
+      ['loaded', 'renderstart', 'arReady', 'arError'].forEach((n) => scene.addEventListener(n, () => log(n)));
+      ['targetFound', 'targetLost'].forEach((n) => target.addEventListener(n, () => log(n)));
+      ['play', 'pause', 'ended', 'loadeddata', 'error'].forEach((n) => video.addEventListener(n, () => log('mov:' + n)));
+      document.getElementById('startBtn').addEventListener('click', () => log('START tap'));
+      setInterval(() => {
+        const v = camVideo();
+        const cv = scene.canvas;
+        const cs = v ? getComputedStyle(v) : null;
+        box.textContent =
+          'UA ' + navigator.userAgent.replace(/.*(iPhone OS [\d_]+|Android [\d.]+).*/, '$1') + ' | retry=' + (sessionStorage.getItem('arRetry') || '-') + '\n' +
+          'scene loaded=' + scene.hasLoaded + ' body=' + document.body.clientWidth + 'x' + document.body.clientHeight + ' win=' + innerWidth + 'x' + innerHeight + '\n' +
+          'cam: ' + (v ? ('w=' + v.videoWidth + ' h=' + v.videoHeight + ' paused=' + v.paused + ' rs=' + v.readyState + ' t=' + v.currentTime.toFixed(1) + ' muted=' + v.muted + ' css=' + cs.width + 'x' + cs.height + ' z=' + cs.zIndex) : 'none') + '\n' +
+          'canvas: ' + (cv ? (cv.clientWidth + 'x' + cv.clientHeight + ' vis=' + getComputedStyle(cv).visibility) : 'none') + '\n' +
+          'movie: rs=' + video.readyState + ' t=' + video.currentTime.toFixed(1) + ' paused=' + video.paused + ' w=' + video.videoWidth + '\n' +
+          'target visible=' + target.object3D.visible + ' info=' + infoShown + '\n' + ev.join('\n');
+      }, 500);
+    }
+  </script>
 </body>
 </html>
