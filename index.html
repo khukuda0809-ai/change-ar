@@ -29,6 +29,7 @@
     #bar button, #bar a { padding: 12px 20px; border: 0; border-radius: 999px; font-size: 14px; font-weight: 700; text-decoration: none; }
     #replay { background: rgba(255,255,255,0.92); color: #0e0e0e; }
     #link { background: #06C755; color: #fff; display: none; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -43,13 +44,13 @@
     <a id="link" target="_blank" rel="noopener"></a>
   </div>
 
+  <!-- ファイルを差し替えたら、下と mindar-image の「?v=」の文字を変える -->
+  <video id="changeVideo" src="./change.mp4?v=20261121d" preload="auto" muted playsinline webkit-playsinline crossorigin="anonymous" style="display:none"></video>
+
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiScanning: #scanning; uiLoading: no; filterMinCF: 0.0001; filterBeta: 0.001"
+    mindar-image="imageTargetSrc: ./targets.mind?v=20261121d; autoStart: false; uiScanning: #scanning; uiLoading: no; filterMinCF: 0.0001; filterBeta: 0.001"
     color-space="sRGB" renderer="colorManagement: true"
     vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-    <a-assets>
-      <video id="changeVideo" src="./change.mp4" preload="auto" muted playsinline webkit-playsinline crossorigin="anonymous"></video>
-    </a-assets>
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
     <a-entity id="target" mindar-image-target="targetIndex: 0">
       <a-video id="videoPlane" src="#changeVideo" width="1" height="1.3333" position="0 0 0"></a-video>
@@ -66,10 +67,6 @@
     const link = document.getElementById('link');
     const scene = document.querySelector('a-scene');
 
-    // 毎回最新のファイルを読み込む（スマホに古い版が残らないように）
-    const BUST = '?v=20261121c';   // ファイルを差し替えたらこの文字を変える
-    video.src = './change.mp4' + BUST;
-    scene.setAttribute('mindar-image', 'imageTargetSrc', './targets.mind' + BUST);
     // 前に開いたタブに戻ったときは読み込み直す
     window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
     let infoShown = false;
@@ -189,14 +186,8 @@
     function watchCam() {
       let tries = 0;
       const timer = setInterval(() => {
-        if (camAlive()) { clearInterval(timer); try { sessionStorage.removeItem('arRetry'); } catch (e) {} return; }
+        if (camAlive() || ++tries > 40) { clearInterval(timer); return; }
         kickCam();
-        if (++tries >= 8) {   // 約4秒たっても映らなければ自動で読み込み直す
-          clearInterval(timer);
-          let retried = false;
-          try { retried = !!sessionStorage.getItem('arRetry'); if (!retried) sessionStorage.setItem('arRetry', '1'); } catch (e) { retried = true; }
-          if (!retried) location.reload();
-        }
       }, 500);
     }
     // 画面をタップしたときもカメラを再開させる
@@ -207,7 +198,9 @@
       try { const p = video.play(); if (p) p.then(() => { video.pause(); video.currentTime = 0; }).catch(() => {}); } catch (e) {}
       document.getElementById('start').style.display = 'none';
       const ar = scene.systems['mindar-image-system'];
+      let started = false;
       const go = () => {
+        if (started) return; started = true;
         ar.start();
         // カメラ映像を「ミュートの動画」としてその場で再生させる（iPhone で真っ黒になる対策）
         const v = camVideo();
@@ -219,20 +212,9 @@
         }
         watchCam();
       };
-      if (scene.hasLoaded) go(); else scene.addEventListener('loaded', go);
+      if (scene.hasLoaded) go(); else { scene.addEventListener('loaded', go); setTimeout(() => { if (scene.hasLoaded) go(); }, 1500); }
     }
     document.getElementById('startBtn').addEventListener('click', startAR);
-
-    // 自動で読み込み直した直後は、スタートを押さずにそのまま始める
-    let autoRetry = false;
-    try { autoRetry = !!sessionStorage.getItem('arRetry'); } catch (e) {}
-    if (autoRetry) startAR();
-
-    scene.addEventListener('arError', () => {
-      let retried = false;
-      try { retried = !!sessionStorage.getItem('arRetry'); if (!retried) sessionStorage.setItem('arRetry', '1'); } catch (e) { retried = true; }
-      if (!retried) location.reload();
-    });
 
     target.addEventListener('targetFound', () => {
       if (infoShown) { bar.style.display = 'flex'; return; }
@@ -263,7 +245,7 @@
         const cv = scene.canvas;
         const cs = v ? getComputedStyle(v) : null;
         box.textContent =
-          'UA ' + navigator.userAgent.replace(/.*(iPhone OS [\d_]+|Android [\d.]+).*/, '$1') + ' | retry=' + (sessionStorage.getItem('arRetry') || '-') + '\n' +
+          'UA ' + navigator.userAgent.replace(/.*(iPhone OS [\d_]+|Android [\d.]+).*/, '$1') + '\n' +
           'scene loaded=' + scene.hasLoaded + ' body=' + document.body.clientWidth + 'x' + document.body.clientHeight + ' win=' + innerWidth + 'x' + innerHeight + '\n' +
           'cam: ' + (v ? ('w=' + v.videoWidth + ' h=' + v.videoHeight + ' paused=' + v.paused + ' rs=' + v.readyState + ' t=' + v.currentTime.toFixed(1) + ' muted=' + v.muted + ' css=' + cs.width + 'x' + cs.height + ' z=' + cs.zIndex) : 'none') + '\n' +
           'canvas: ' + (cv ? (cv.clientWidth + 'x' + cv.clientHeight + ' vis=' + getComputedStyle(cv).visibility) : 'none') + '\n' +
