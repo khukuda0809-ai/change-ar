@@ -18,7 +18,9 @@
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; }
+    html, body { margin: 0; height: 100%; overflow: hidden; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; }
+    html { background: #000; }
+    body { background: transparent !important; }   /* 黒い背景がカメラ映像を隠さないように */
     #start { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: #0b0714; color: #ffffff; text-align: center; padding: 24px; }
     #start h1 { margin: 0; font-size: 56px; font-weight: 900; color: #ff3cc8; text-shadow: 0 0 18px #ff3cc8; letter-spacing: -0.02em; font-family: "Helvetica Neue", Arial, sans-serif; }
     #start p { margin: 0; font-size: 15px; line-height: 1.8; color: #ddd; }
@@ -45,10 +47,10 @@
   </div>
 
   <!-- ファイルを差し替えたら、下と mindar-image の「?v=」の文字を変える -->
-  <video id="changeVideo" src="./change.mp4?v=20261121d" preload="auto" muted playsinline webkit-playsinline crossorigin="anonymous" style="display:none"></video>
+  <video id="changeVideo" src="./change.mp4?v=20261121e" preload="auto" muted playsinline webkit-playsinline crossorigin="anonymous" style="display:none"></video>
 
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind?v=20261121d; autoStart: false; uiScanning: #scanning; uiLoading: no; filterMinCF: 0.0001; filterBeta: 0.001"
+    mindar-image="imageTargetSrc: ./targets.mind?v=20261121e; autoStart: false; uiScanning: #scanning; uiLoading: no; filterMinCF: 0.0001; filterBeta: 0.001"
     color-space="sRGB" renderer="colorManagement: true"
     vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
