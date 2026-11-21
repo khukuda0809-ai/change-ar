@@ -67,7 +67,7 @@
     const scene = document.querySelector('a-scene');
 
     // 毎回最新のファイルを読み込む（スマホに古い版が残らないように）
-    const BUST = '?t=' + Date.now();
+    const BUST = '?v=20261121b';   // ファイルを差し替えたらこの文字を変える
     video.src = './change.mp4' + BUST;
     scene.setAttribute('mindar-image', 'imageTargetSrc', './targets.mind' + BUST);
     // 前に開いたタブに戻ったときは読み込み直す
@@ -183,11 +183,26 @@
     }
 
     document.getElementById('startBtn').addEventListener('click', async () => {
-      try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) {}
+      // 動画の再生許可だけ取っておく（読み込み完了は待たない）
+      try { const p = video.play(); if (p) p.then(() => { video.pause(); video.currentTime = 0; }).catch(() => {}); } catch (e) {}
+      // 先にカメラの許可を取ってから AR を始める（初回の許可ダイアログ対策）
+      try {
+        const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        st.getTracks().forEach((t) => t.stop());
+      } catch (e) {}
       document.getElementById('start').style.display = 'none';
       const ar = scene.systems['mindar-image-system'];
-      if (scene.hasLoaded) ar.start(); else scene.addEventListener('loaded', () => ar.start());
+      const go = () => setTimeout(() => ar.start(), 300);
+      if (scene.hasLoaded) go(); else scene.addEventListener('loaded', go);
     });
+
+    // カメラ起動に失敗したら一度だけ自動で読み込み直す
+    scene.addEventListener('arError', () => {
+      try {
+        if (!sessionStorage.getItem('arRetry')) { sessionStorage.setItem('arRetry', '1'); location.reload(); }
+      } catch (e) {}
+    });
+    scene.addEventListener('arReady', () => { try { sessionStorage.removeItem('arRetry'); } catch (e) {} });
 
     target.addEventListener('targetFound', () => {
       if (infoShown) { bar.style.display = 'flex'; return; }
