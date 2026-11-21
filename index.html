@@ -67,7 +67,7 @@
     const scene = document.querySelector('a-scene');
 
     // 毎回最新のファイルを読み込む（スマホに古い版が残らないように）
-    const BUST = '?v=20261121b';   // ファイルを差し替えたらこの文字を変える
+    const BUST = '?v=20261121c';   // ファイルを差し替えたらこの文字を変える
     video.src = './change.mp4' + BUST;
     scene.setAttribute('mindar-image', 'imageTargetSrc', './targets.mind' + BUST);
     // 前に開いたタブに戻ったときは読み込み直す
@@ -182,27 +182,57 @@
       video.play();
     }
 
-    document.getElementById('startBtn').addEventListener('click', async () => {
-      // 動画の再生許可だけ取っておく（読み込み完了は待たない）
+    // カメラ映像が止まっていないか見張る（iPhone の初回カメラ許可で真っ黒になる対策）
+    function camVideo() { const sys = scene.systems['mindar-image-system']; return sys && sys.video; }
+    function camAlive() { const v = camVideo(); return v && v.videoWidth > 0 && !v.paused && v.readyState >= 2; }
+    function kickCam() { const v = camVideo(); if (v && v.paused) { v.muted = true; v.setAttribute('playsinline', ''); v.play().catch(() => {}); } }
+    function watchCam() {
+      let tries = 0;
+      const timer = setInterval(() => {
+        if (camAlive()) { clearInterval(timer); try { sessionStorage.removeItem('arRetry'); } catch (e) {} return; }
+        kickCam();
+        if (++tries >= 8) {   // 約4秒たっても映らなければ自動で読み込み直す
+          clearInterval(timer);
+          let retried = false;
+          try { retried = !!sessionStorage.getItem('arRetry'); if (!retried) sessionStorage.setItem('arRetry', '1'); } catch (e) { retried = true; }
+          if (!retried) location.reload();
+        }
+      }, 500);
+    }
+    // 画面をタップしたときもカメラを再開させる
+    document.addEventListener('touchend', kickCam);
+    document.addEventListener('click', kickCam);
+
+    function startAR() {
       try { const p = video.play(); if (p) p.then(() => { video.pause(); video.currentTime = 0; }).catch(() => {}); } catch (e) {}
-      // 先にカメラの許可を取ってから AR を始める（初回の許可ダイアログ対策）
-      try {
-        const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        st.getTracks().forEach((t) => t.stop());
-      } catch (e) {}
       document.getElementById('start').style.display = 'none';
       const ar = scene.systems['mindar-image-system'];
-      const go = () => setTimeout(() => ar.start(), 300);
+      const go = () => {
+        ar.start();
+        // カメラ映像を「ミュートの動画」としてその場で再生させる（iPhone で真っ黒になる対策）
+        const v = camVideo();
+        if (v) {
+          v.muted = true; v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+          v.addEventListener('loadedmetadata', () => v.play().catch(() => {}));
+          v.addEventListener('pause', () => setTimeout(kickCam, 100));
+          v.play().catch(() => {});
+        }
+        watchCam();
+      };
       if (scene.hasLoaded) go(); else scene.addEventListener('loaded', go);
-    });
+    }
+    document.getElementById('startBtn').addEventListener('click', startAR);
 
-    // カメラ起動に失敗したら一度だけ自動で読み込み直す
+    // 自動で読み込み直した直後は、スタートを押さずにそのまま始める
+    let autoRetry = false;
+    try { autoRetry = !!sessionStorage.getItem('arRetry'); } catch (e) {}
+    if (autoRetry) startAR();
+
     scene.addEventListener('arError', () => {
-      try {
-        if (!sessionStorage.getItem('arRetry')) { sessionStorage.setItem('arRetry', '1'); location.reload(); }
-      } catch (e) {}
+      let retried = false;
+      try { retried = !!sessionStorage.getItem('arRetry'); if (!retried) sessionStorage.setItem('arRetry', '1'); } catch (e) { retried = true; }
+      if (!retried) location.reload();
     });
-    scene.addEventListener('arReady', () => { try { sessionStorage.removeItem('arRetry'); } catch (e) {} });
 
     target.addEventListener('targetFound', () => {
       if (infoShown) { bar.style.display = 'flex'; return; }
