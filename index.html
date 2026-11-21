@@ -65,6 +65,13 @@
     const bar = document.getElementById('bar');
     const link = document.getElementById('link');
     const scene = document.querySelector('a-scene');
+
+    // 毎回最新のファイルを読み込む（スマホに古い版が残らないように）
+    const BUST = '?t=' + Date.now();
+    video.src = './change.mp4' + BUST;
+    scene.setAttribute('mindar-image', 'imageTargetSrc', './targets.mind' + BUST);
+    // 前に開いたタブに戻ったときは読み込み直す
+    window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
     let infoShown = false;
 
     // カウントダウンの計算（日本時間）
