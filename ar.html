@@ -35,6 +35,10 @@
     #replay { background: rgba(255,255,255,0.92); color: #0e0e0e; }
     #link { background: #06C755; color: #fff; display: none; }
     .hidden { display: none !important; }
+    #camwait { position: fixed; left: 0; right: 0; top: 45%; z-index: 9; display: none; text-align: center; color: #fff; font-size: 15px; opacity: .85; }
+    #camfail { position: fixed; inset: 0; z-index: 30; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: #0b0714; color: #fff; text-align: center; padding: 24px; }
+    #camfail p { margin: 0; font-size: 15px; color: #ddd; }
+    #camfail button { padding: 14px 32px; font-size: 16px; font-weight: 700; border: 0; border-radius: 999px; background: #ff3cc8; color: #fff; }
   </style>
 </head>
 <body>
@@ -44,6 +48,8 @@
     <p>ボタンを押したあと、<br>カメラをポスター全体に向けてください。</p>
     <button id="startBtn">はじめる</button>
   </div>
+  <div id="camwait">カメラを起動しています…</div>
+  <div id="camfail"><p>カメラの準備ができませんでした。</p><button id="camfailBtn">もう一度カメラを起動する</button></div>
   <div id="scanning" class="hidden"><div>ポスター全体をカメラに映してください</div></div>
   <div id="bar">
     <button id="replay">もう一度見る</button>
@@ -189,13 +195,45 @@
     function camVideo() { const sys = scene.systems['mindar-image-system']; return sys && sys.video; }
     function camAlive() { const v = camVideo(); return v && v.videoWidth > 0 && !v.paused && v.readyState >= 2; }
     function kickCam() { const v = camVideo(); if (v && v.paused) { v.muted = true; v.setAttribute('playsinline', ''); v.play().catch(() => {}); } }
+    // QR を読み取った直後は、カメラアプリがまだカメラを使っていて起動に失敗することがある。
+    // 約4秒たってもカメラが映らなければ、1回だけ自動で読み込み直してそのまま始める。
+    function getFlag() { try { return sessionStorage.getItem('arRetry'); } catch (e) { return '1'; } }
+    function setFlag(v) { try { v ? sessionStorage.setItem('arRetry', v) : sessionStorage.removeItem('arRetry'); } catch (e) {} }
+    function camFailed() {
+      if (!getFlag()) { setFlag('1'); location.reload(); return; }
+      setFlag('2');
+      document.getElementById('camfail').style.display = 'flex';
+    }
+    // カメラ許可のダイアログに答えている間は待ち時間に数えない
+    let gumPending = false, permState = 'unknown';
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia = (c) => {
+        gumPending = true;
+        const p = orig(c);
+        p.then(() => { gumPending = false; }, () => { gumPending = false; });
+        return p;
+      };
+    }
+    function checkPerm() {
+      try {
+        navigator.permissions.query({ name: 'camera' }).then((r) => { permState = r.state; }, () => { permState = 'na'; });
+      } catch (e) { permState = 'na'; }
+    }
+    const camwait = document.getElementById('camwait');
     function watchCam() {
+      camwait.style.display = 'block';
       let tries = 0;
       const timer = setInterval(() => {
-        if (camAlive() || ++tries > 40) { clearInterval(timer); return; }
+        if (camAlive()) { clearInterval(timer); setFlag(null); camwait.style.display = 'none'; return; }
         kickCam();
+        checkPerm();
+        // 許可ダイアログが出ているかもしれない間は約10秒、許可済みなら約4秒、判定できない機種は約8秒待つ
+        const limit = (permState === 'granted') ? 8 : (permState === 'na') ? 16 : 20;
+        if (++tries >= limit) { clearInterval(timer); camwait.style.display = 'none'; camFailed(); }
       }, 500);
     }
+
     // 画面をタップしたときもカメラを再開させる
     document.addEventListener('touchend', kickCam);
     document.addEventListener('click', kickCam);
@@ -203,10 +241,10 @@
     function startAR() {
       try { const p = video.play(); if (p) p.then(() => { video.pause(); video.currentTime = 0; }).catch(() => {}); } catch (e) {}
       document.getElementById('start').style.display = 'none';
-      const ar = scene.systems['mindar-image-system'];
       let started = false;
       const go = () => {
-        if (started) return; started = true;
+        const ar = scene.systems && scene.systems['mindar-image-system'];
+        if (started || !ar) return; started = true;
         ar.start();
         // カメラ映像を「ミュートの動画」としてその場で再生させる（iPhone で真っ黒になる対策）
         const v = camVideo();
@@ -221,6 +259,10 @@
       if (scene.hasLoaded) go(); else { scene.addEventListener('loaded', go); setTimeout(() => { if (scene.hasLoaded) go(); }, 1500); }
     }
     document.getElementById('startBtn').addEventListener('click', startAR);
+    document.getElementById('camfailBtn').addEventListener('click', () => { setFlag('1'); location.reload(); });
+    scene.addEventListener('arError', camFailed);
+    // 自動で読み込み直した後は、スタートを押さずにそのまま始める
+    if (getFlag()) startAR();
 
     const blackout = document.getElementById('blackout');
     target.addEventListener('targetFound', () => blackout.classList.add('on'));
